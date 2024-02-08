@@ -8,3 +8,4 @@ RUN chmod +x /usr/local/bin/gu
 RUN git clone --branch id/debug-logging https://github.com/firedexofficial/signal-cli
 WORKDIR /app/signal-cli
 RUN git pull origin id/debug-logging; git log -1 --pretty=%B | tee commit-msg ; ./gradlew nativeCompile
+RUN cp build/native/nativeCompile/signal-cli /usr/bin/
