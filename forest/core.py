@@ -102,6 +102,7 @@ async def get_attachment_paths(message: Message) -> list[str]:
         for attachment in message.attachments
     ]
 
+
 ActivityQueries = pghelp.PGExpressions(
     table="user_activity",
     create_table="""CREATE TABLE user_activity (
@@ -1764,6 +1765,7 @@ app.add_routes(
 # 4. start process
 
 app.on_startup.append(add_tiprat)
+
 
 def run_bot(bot: Type[Bot], local_app: web.Application = app) -> None:
     async def start_wrapper(our_app: web.Application) -> None:
