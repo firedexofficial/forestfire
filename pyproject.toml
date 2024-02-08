@@ -24,7 +24,7 @@ pycryptodome = "*"
 aiohttp = {extras = ["speedups"], version = "^3.8.1"}
 
 [tool.poetry.dev-dependencies]
-black = "*"
+black = "^24.1.1"
 mypy = "*"
 pylint = "*"
 pytest = "*"

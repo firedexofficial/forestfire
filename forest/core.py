@@ -52,7 +52,7 @@ from ulid2 import generate_ulid_as_base32 as get_uid
 
 # framework
 import mc_util
-from forest import autosave, datastore, payments_monitor, pghelp, string_dist, utils
+from forest import payments_monitor, pghelp, string_dist, utils
 from forest.cryptography import hash_salt
 from forest.message import AuxinMessage, Message, StdioMessage
 
@@ -69,7 +69,7 @@ Command = Callable[["Bot", Message], Coroutine[Any, Any, Response]]
 roundtrip_histogram = Histogram("roundtrip_h", "Roundtrip message response time")
 roundtrip_summary = Summary("roundtrip_s", "Roundtrip message response time")
 
-MessageParser = AuxinMessage if utils.AUXIN else StdioMessage
+MessageParser = StdioMessage
 logging.info("Using message parser: %s", MessageParser)
 FEE_PMOB = int(1e12 * 0.0004)
 
@@ -97,27 +97,10 @@ def check_valid_recipient(recipient: str) -> bool:
 
 
 async def get_attachment_paths(message: Message) -> list[str]:
-    if not utils.AUXIN:
-        return [
-            str(Path("./attachments") / attachment["id"])
-            for attachment in message.attachments
-        ]
-    attachments = []
-    for attachment_info in message.attachments:
-        attachment_name = attachment_info.get("fileName")
-        timestamp = attachment_info.get("uploadTimestamp")
-        for i in range(30):  # wait up to 3s
-            if attachment_name is None:
-                maybe_paths = glob.glob(f"/tmp/unnamed_attachment_{timestamp}.*")
-                attachment_path = maybe_paths[0] if maybe_paths else ""
-            else:
-                attachment_path = f"/tmp/{attachment_name}"
-            if attachment_path and Path(attachment_path).exists():
-                attachments.append(attachment_path)
-                break
-            await asyncio.sleep(0.1)
-    return attachments
-
+    return [
+        str(Path("./attachments") / attachment["id"])
+        for attachment in message.attachments
+    ]
 
 ActivityQueries = pghelp.PGExpressions(
     table="user_activity",
@@ -139,9 +122,8 @@ ActivityQueries = pghelp.PGExpressions(
 
 class Signal:
     """
-    Represents a signal-cli/auxin-cli session.
-    Lifecycle: Downloads the datastore, runs and restarts signal client,
-    tries to gracefully kill signal and upload before exiting.
+    Represents a signal-cli session.
+    tries to gracefully kill signal before exiting.
     I/O: reads signal client's output into inbox,
     has methods for sending commands to the signal client, and
     actually writes those json blobs to signal client's stdin.
@@ -156,7 +138,6 @@ class Signal:
                 bot_number = utils.get_secret("BOT_NUMBER")
         logging.debug("bot number: %s", bot_number)
         self.bot_number = bot_number
-        self.datastore = datastore.SignalDatastore(bot_number)
         self.proc: Optional[subprocess.Process] = None
         self.inbox: Queue[Message] = Queue()
         self.outbox: Queue[dict] = Queue()
@@ -165,7 +146,7 @@ class Signal:
 
     async def start_process(self) -> None:
         """
-        Add SIGINT handlers. Download datastore.
+        Add SIGINT handlers.
         (Re)start signal client and launch reading and writing with it.
         """
         # things that don't work: loop.add_signal_handler(async_shutdown) - TypeError
@@ -173,18 +154,13 @@ class Signal:
         loop = asyncio.get_running_loop()
         loop.add_signal_handler(signal.SIGINT, self.sync_signal_handler)
         logging.debug("added signal handler, downloading...")
-        if utils.DOWNLOAD:
-            await self.datastore.download()
         write_task: Optional[asyncio.Task] = None
         restart_count = 0
         max_backoff = 15
         while self.sigints == 0 and not self.exiting:
             path = utils.SIGNAL_PATH
-            if utils.AUXIN:
-                path += " --download-path /tmp"
-            else:
-                path += " --trust-new-identities always"
-            command = f"{path} --config {utils.ROOT_DIR}/ --user {self.bot_number} jsonRpc".split()
+            path += " --trust-new-identities always"
+            command = f"{path} --config {utils.ROOT_DIR}/state/ --user {self.bot_number} jsonRpc".split()
             logging.info(" ".join(command))
             proc_launch_time = time.time()
             # this ought to FileNotFoundError but doesn't
@@ -237,29 +213,17 @@ class Signal:
 
     async def async_shutdown(self, *_: Any, wait: bool = False) -> None:
         """
-        Upload our datastore, close postgres connections pools, kill signal, kill autosave, exit
+        Close postgres connections pools, kill signal, kill autosave, exit
         """
         logging.info("starting async_shutdown")
-        # if we're downloading, then we upload too
-        if utils.UPLOAD:
-            await self.datastore.upload()
         # ideally also cancel Bot.restart_task
         if self.proc:
             try:
                 self.proc.kill()
-                if wait and utils.UPLOAD:
-                    await self.proc.wait()
-                    await self.datastore.upload()
             except ProcessLookupError:
                 logging.info(f"no {utils.SIGNAL} process")
-        if utils.UPLOAD:
-            await self.datastore.mark_freed()
         await pghelp.pool.close()
         # this still deadlocks. see https://github.com/forestcontact/forest-draft/issues/10
-        if autosave._memfs_process:
-            executor = autosave._memfs_process._get_executor()
-            logging.info(executor)
-            executor.shutdown(wait=False, cancel_futures=True)
         logging.info("exited".center(60, "="))
         sys.exit(0)  # equivelent to `raise SystemExit()`
         logging.info("called sys.exit but still running, trying os._exit")
@@ -300,7 +264,7 @@ class Signal:
         return handler
 
     async def read_signal_stdout(self, stream: StreamReader) -> None:
-        """Read auxin-cli/signal-cli output but delegate handling it"""
+        """Read signal-cli output but delegate handling it"""
         while True:
             line = (await stream.readline()).decode().strip()
             if not line:
@@ -373,7 +337,7 @@ class Signal:
         """
         if a req is given, put in the outbox with along with a future for its result.
         if an rpc_id or req was given, wait for that future and return the result from
-        auxin-cli/signal-cli
+        signal-cli
         """
         if req:
             rpc_id = req["method"] + "-" + get_uid()
@@ -388,7 +352,7 @@ class Signal:
         return response
 
     async def signal_rpc_request(self, method: str, **params: Any) -> Message:
-        """Sends a jsonRpc command to signal-cli or auxin-cli"""
+        """Sends a jsonRpc command to signal-cli"""
         return await self.wait_for_response(req=rpc(method, **params))
 
     async def set_profile(
@@ -484,17 +448,13 @@ class Signal:
             params["attachments"] = attachments
         if content:
             params["content"] = content
-        if group and not utils.AUXIN:
+        if group:
             params["group-id"] = group
-        if recipient and not utils.AUXIN:
+        if recipient:
             if not check_valid_recipient(recipient):
                 logging.error("not sending message to invalid recipient %s", recipient)
                 return ""
             params["recipient"] = str(recipient)
-        if recipient and utils.AUXIN:
-            params["destination"] = str(recipient)
-        if group and utils.AUXIN:
-            params["group"] = group
         # maybe use rpc() instead
         rpc_id = f"send-{get_uid()}"
         json_command: JSON = {
@@ -532,18 +492,6 @@ class Signal:
 
     async def send_reaction(self, target_msg: Message, emoji: str) -> None:
         """Send a reaction. Protip: you can use e.g. \N{GRINNING FACE} in python"""
-        if utils.AUXIN:
-            react = {
-                "emoji": emoji,
-                "targetAuthorUuid": target_msg.uuid,
-                "targetSentTimestamp": target_msg.timestamp,
-            }
-            await self.respond(
-                target_msg,
-                "",
-                content={"dataMessage": {"body": None, "reaction": react}},
-            )
-            return
         react = {
             "target-author": target_msg.source,
             "target-timestamp": target_msg.timestamp,
@@ -571,20 +519,6 @@ class Signal:
         if msg:
             group = msg.group or ""
             recipient = msg.source
-        if utils.AUXIN:
-            content: dict = {
-                "dataMessage": None,
-                "typingMessage": {
-                    "action": "STOPPED" if stop else "STARTED",
-                    "timestamp": int(time.time() * 1000),
-                },
-            }
-            if group:
-                content["typingMessage"]["groupId"] = group
-                await self.send_message(None, "", group=group, content=content)
-            else:
-                await self.send_message(recipient, "", content=content)
-            return
         if group:
             await self.outbox.put(rpc("sendTyping", group=[group], stop=stop))
         else:
@@ -594,29 +528,6 @@ class Signal:
         self, msg: Message, sticker: str = "a4f608100f49e0992b6760f2b971b8a7:0"
     ) -> None:
         "send a sticker to the person or group the message is from"
-        if utils.AUXIN:
-            stick = {
-                "data": {
-                    "attachment_identifier": {"cdnId": 5902557749391454000},
-                    "contentType": "image/webp",
-                    "digest": u8("vo2+aWLvbOEYCVUZUocLb0ffORNFo5924nmyH28Pj04="),
-                    "height": 512,
-                    "key": u8(
-                        "a5B7fMYxWpn8DILBWfB/tnFSXufcC7C318XC4bXmwEy/NYnKof/oS15JU8sn33whcYwoXDKT12BF04RoDQ4Osg=="
-                    ),
-                    "size": 17540,
-                    "width": 512,
-                },
-                "packId": u8("pPYIEA9J4JkrZ2DyuXG4pw=="),
-                "packKey": u8("R2ZbM8Tz2N49WYY8yEWXPLML4JC/w1tu0naLoj5P1eY="),
-                "stickerId": 0,
-            }
-            content = {"dataMessage": {"body": None, "sticker": stick}}
-            if msg.group:
-                await self.send_message(None, "", group=msg.group, content=content)
-            else:
-                await self.send_message(msg.source, "", content=content)
-            return
         await self.respond(msg, "", sticker=sticker)
 
     backoff = False
@@ -634,7 +545,7 @@ class Signal:
         return self.messages_until_rate_limit > 1
 
     async def write_commands(self, pipe: StreamWriter) -> None:
-        """Encode and write pending auxin-cli/signal-cli commands"""
+        """Encode and write pending signal-cli commands"""
         while True:
             command = await self.outbox.get()
             if self.backoff:
@@ -712,7 +623,7 @@ class Bot(Signal):
     def __init__(self, bot_number: Optional[str] = None) -> None:
         """Creates AND STARTS a bot that routes commands to do_x handlers"""
         self.client_session = aiohttp.ClientSession()
-        self.mobster = payments_monitor.StatefulMobster()
+        self.mobster = payments_monitor.Mobster()
         self.pongs: dict[str, str] = {}
         self.signal_roundtrip_latency: list[Datapoint] = []
         self.pending_response_tasks: list[asyncio.Task] = []
@@ -770,7 +681,7 @@ class Bot(Signal):
 
     async def handle_messages(self) -> None:
         """
-        Read messages from the queue. If it matches a pending request to auxin-cli/signal-cli,
+        Read messages from the queue. If it matches a pending request to signal-cli,
         set the result for that request. If said result is being rate limited, retry sending it
         after pausing. Otherwise, concurrently respond to each message.
         """
@@ -1096,14 +1007,6 @@ class PayBot(ExtrasBot):
             return None
         return await super().handle_message(message)
 
-    async def get_user_usd_balance(self, account: str) -> float:
-        res = await self.mobster.ledger_manager.get_usd_balance(account)
-        return float(round(res[0].get("balance"), 2))
-
-    async def get_user_pmob_balance(self, account: str) -> float:
-        res = await self.mobster.ledger_manager.get_pmob_balance(account)
-        return res[0].get("balance")
-
     async def handle_payment(self, message: Message) -> None:
         """Decode the receipt, then update balances.
         Blocks on transaction completion, run concurrently"""
@@ -1119,12 +1022,6 @@ class PayBot(ExtrasBot):
             return
         amount_mob = float(mc_util.pmob2mob(amount_pmob))
         amount_usd_cents = round(amount_mob * await self.mobster.get_rate() * 100)
-        await self.mobster.ledger_manager.put_pmob_tx(
-            message.source,
-            amount_usd_cents,
-            amount_pmob,
-            message.payment.get("note"),
-        )
         await self.respond(message, await self.payment_response(message, amount_pmob))
 
     async def payment_response(self, msg: Message, amount_pmob: int) -> Response:
@@ -1136,16 +1033,6 @@ class PayBot(ExtrasBot):
 
     async def get_signalpay_address(self, recipient: str) -> Optional[str]:
         "get a receipient's mobilecoin address"
-        if utils.AUXIN:
-            result = await self.signal_rpc_request("getPayAddress", peer_name=recipient)
-            b64_address = (
-                result.blob.get("Address", {})
-                .get("mobileCoinAddress", {})
-                .get("address")
-            )
-            if result.error or not b64_address:
-                logging.info("bad address: %s", result.blob)
-                return None
         result = await self.signal_rpc_request("listContacts", recipient=recipient)
         b64_address = (
             result.blob.get("result", {}).get("profile", {}).get("mobileCoinAddress")
@@ -1333,23 +1220,14 @@ class PayBot(ExtrasBot):
         # this gets us a Receipt protobuf
         full_service_receipt["object"] = "receiver_receipt"
         b64_receipt = mc_util.full_service_receipt_to_b64_receipt(full_service_receipt)
-        if utils.AUXIN:
-            content = compose_payment_content(b64_receipt, receipt_message)
-            # pass our beautifully composed JSON content to auxin.
-            # message body is ignored in this case.
-            payment_notif = await self.send_message(recipient, "", content=content)
-            resp_future = asyncio.create_task(
-                self.wait_for_response(rpc_id=payment_notif)
+        resp_future = asyncio.create_task(
+            self.signal_rpc_request(
+                "sendPaymentNotification",
+                receipt=b64_receipt,
+                note=receipt_message,
+                recipient=recipient,
             )
-        else:
-            resp_future = asyncio.create_task(
-                self.signal_rpc_request(
-                    "sendPaymentNotification",
-                    receipt=b64_receipt,
-                    note=receipt_message,
-                    recipient=recipient,
-                )
-            )
+        )
         if confirm_tx_timeout:
             status = await self.confirm_tx_timeout(tx_id, recipient, confirm_tx_timeout)
             resp = await resp_future
@@ -1774,8 +1652,6 @@ class QuestionBot(PayBot):
 
     @requires_admin
     async def do_setup(self, msg: Message) -> str:
-        if not utils.AUXIN:
-            return "Can't set profile without auxin"
         fields: dict[str, Optional[str]] = {}
         for field in ["given_name", "family_name", "about", "mood_emoji"]:
             resp = await self.ask_freeform_question(
@@ -1888,10 +1764,6 @@ app.add_routes(
 # 4. start process
 
 app.on_startup.append(add_tiprat)
-if utils.MEMFS:
-    app.on_startup.append(autosave.start_memfs)
-    app.on_startup.append(autosave.start_memfs_monitor)
-
 
 def run_bot(bot: Type[Bot], local_app: web.Application = app) -> None:
     async def start_wrapper(our_app: web.Application) -> None:

@@ -1,3 +1,14 @@
+## 2.0.0
+
+- no Auxin :((
+- no memfs! remove AUTOSAVE / upload / download / etc
+- drop pdict, pdictng is the only g.
+- pdictng just targets our (openkv) based persistence backend
+- less https://fly.io
+- fix (most) support for fullservice's v2 API
+- drop old bots - they're still in git history / other branches, but we don't need the clutter
+- add Dockerfile.signalcli-native-builder
+
 ## 1.2.10
 
 - singleton pool fixed
@@ -65,7 +76,7 @@
 
 - new flags: ADMINS, ADMIN_GROUP, UPLOAD (upload-only). (#149)
 - `last_node_name column` in `signal_accounts` table, like `active_node_name` and also they include app name. `list_accounts` uses your timezone
-- refactor command matching and  message text parsing. include `device_id`, reaction, and quote. shouldn't have breaking changes. 
+- refactor command matching and  message text parsing. include `device_id`, reaction, and quote. shouldn't have breaking changes.
 - move commands from Bot to ExtrasBot (could be renamed), drop invoices, allow using separate ledgers, time postgres queries
 
 ## 1.2.2

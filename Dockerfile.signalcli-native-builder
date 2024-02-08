@@ -1,0 +1,10 @@
+FROM ghcr.io/graalvm/graalvm-community:21 as sigbuilder
+ENV GRAALVM_HOME=/opt/graalvm-community-java21/
+ENV JAVA_HOME=/opt/graalvm-community-java21/
+SHELL ["/usr/bin/bash", "-c"]
+WORKDIR /app
+RUN microdnf install -y git && rm -rf /var/cache/yum
+RUN chmod +x /usr/local/bin/gu
+RUN git clone --branch id/debug-logging https://github.com/firedexofficial/signal-cli
+WORKDIR /app/signal-cli
+RUN git pull origin id/debug-logging; git log -1 --pretty=%B | tee commit-msg ; ./gradlew nativeCompile
