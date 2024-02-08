@@ -10,9 +10,9 @@ from typing import Any, Generic, Optional, TypeVar, overload
 import aiohttp
 from forest.cryptography import get_ciphertext_value, get_cleartext_value, hash_salt
 
-# def hash_salt(v): return v
-# def get_cleartext_value(v): return v
-# def get_ciphertext_value(v): return v
+#def hash_salt(v): return v
+#def get_cleartext_value(v): return v
+#def get_ciphertext_value(v): return v
 NAMESPACE = os.getenv("FLY_APP_NAME") or open("/etc/hostname").read().strip()
 pAUTH = os.getenv("PAUTH", "")
 pURL = os.getenv("PURL", "https://gusc1-charming-parrot-31440.upstash.io")
@@ -64,7 +64,8 @@ class fasterpKVStoreClient(persistentKVStoreClient):
         """Get and return value of an object with the specified key and namespace"""
         key = hash_salt(f"{self.namespace}_{key}")
         async with self.conn.get(f"{self.url}/{key}", headers=self.headers) as resp:
-            return get_cleartext_value(await resp.json())
+            value = get_cleartext_value(await resp.text())
+            return value
 
 
 V = TypeVar("V")
@@ -100,9 +101,7 @@ class aPersistDict(Generic[V]):
         if "tag" in kwargs:
             self.tag = kwargs.pop("tag")
         self.dict_: dict[str, Any] = {}
-        self.client: persistentKVStoreClient = (
-            fastpKVStoreClient() if "supabase" in pURL else fasterpKVStoreClient()
-        )
+        self.client: persistentKVStoreClient = fasterpKVStoreClient()
         self.rwlock = asyncio.Lock()
         self.loop = asyncio.get_event_loop()
         self.init_task = asyncio.create_task(self.finish_init(**kwargs))
@@ -127,7 +126,7 @@ class aPersistDict(Generic[V]):
     async def finish_init(self, **kwargs: Any) -> None:
         """Does the asynchrnous part of the initialisation process."""
         async with self.rwlock:
-            key = f"Persist_{self.tag}_{NAMESPACE}"
+            key = f"Persist_{self.tag}"
             result = await self.client.get(key)
             if result:
                 self.dict_ = json.loads(result)
@@ -185,7 +184,7 @@ class aPersistDict(Generic[V]):
             self.dict_.update({key: value})
         elif key and value is None and key in self.dict_:
             self.dict_.pop(key)
-        client_key = f"Persist_{self.tag}_{NAMESPACE}"
+        client_key = f"Persist_{self.tag}"
         client_value = json.dumps(self.dict_)
         return await self.client.post(client_key, client_value)
 
