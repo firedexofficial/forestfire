@@ -291,7 +291,7 @@ class Mobster:
 
             ## get the account_id that matches the name
             maybe_account_id = [
-                x["account_id"] for x in account_map if x["name"] == account_name
+                x["id"] for x in account_map if x["name"] == account_name
             ]
         if len(maybe_account_id) == 0:
             account_id = account_ids[0]
@@ -328,13 +328,17 @@ class Mobster:
     async def get_balance(self) -> int:
         account_id = await self.get_account()
         value = (
-            await self.req(
-                {
-                    "method": "get_balance",
-                    "params": {"account_id": account_id},
-                }
-            )
-        )["result"]["balance_per_token"]["0"]["unspent"]
+            (
+                await self.req(
+                    {
+                        "method": "get_balance",
+                        "params": {"account_id": account_id},
+                    }
+                )
+            )["result"]["balance_per_token"]
+            .get("0", {})
+            .get("unspent", "0")
+        )
         return int(value)
 
     async def get_transactions(self, account_id: str) -> dict[str, dict[str, str]]:
