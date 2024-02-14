@@ -52,7 +52,7 @@ from ulid2 import generate_ulid_as_base32 as get_uid
 
 # framework
 import mc_util
-from forest import payments_monitor, pghelp, string_dist, utils
+from forest import payments_monitor, pghelp, string_dist, utils, datastore
 from forest.cryptography import hash_salt
 from forest.message import AuxinMessage, Message, StdioMessage
 
@@ -139,6 +139,7 @@ class Signal:
                 bot_number = utils.get_secret("BOT_NUMBER")
         logging.debug("bot number: %s", bot_number)
         self.bot_number = bot_number
+        self.datastore = datastore.SignalDatastore(bot_number)
         self.proc: Optional[subprocess.Process] = None
         self.inbox: Queue[Message] = Queue()
         self.outbox: Queue[dict] = Queue()
@@ -158,6 +159,8 @@ class Signal:
         write_task: Optional[asyncio.Task] = None
         restart_count = 0
         max_backoff = 15
+        if utils.RESTORE:
+            await self.datastore.async_startup()
         while self.sigints == 0 and not self.exiting:
             path = utils.SIGNAL_PATH
             path += " --trust-new-identities always"
@@ -223,7 +226,11 @@ class Signal:
                 self.proc.kill()
             except ProcessLookupError:
                 logging.info(f"no {utils.SIGNAL} process")
+
         await pghelp.pool.close()
+
+        if utils.RESTORE:
+            await self.datastore.async_shutdown()
         # this still deadlocks. see https://github.com/forestcontact/forest-draft/issues/10
         logging.info("exited".center(60, "="))
         sys.exit(0)  # equivelent to `raise SystemExit()`
@@ -1757,12 +1764,6 @@ app.add_routes(
         web.get("/csv_metrics", metrics),
     ]
 )
-
-# order of operations:
-# 1. start memfs
-# 2. instanciate Bot, which may call setup_tmpdir
-# 3. download
-# 4. start process
 
 app.on_startup.append(add_tiprat)
 

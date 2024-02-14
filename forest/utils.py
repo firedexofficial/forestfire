@@ -95,6 +95,7 @@ URL = os.getenv("URL_OVERRIDE", f"https://{APP_NAME}.fly.dev")
 LOCAL = os.getenv("FLY_APP_NAME") is None
 ROOT_DIR = get_secret("ROOT_DIR") or "/app" if not LOCAL else "."
 SIGNAL = "signal-cli"
+RESTORE = get_secret("RESTORE") or True
 
 maybe_path = get_secret("SIGNAL_PATH")
 if maybe_path and Path(maybe_path).exists():

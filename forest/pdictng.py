@@ -13,9 +13,9 @@ from forest.cryptography import get_ciphertext_value, get_cleartext_value, hash_
 # def hash_salt(v): return v
 # def get_cleartext_value(v): return v
 # def get_ciphertext_value(v): return v
-NAMESPACE = os.getenv("FLY_APP_NAME") or open("/etc/hostname").read().strip()
-pAUTH = os.getenv("PAUTH", "")
-pURL = os.getenv("PURL", "https://gusc1-charming-parrot-31440.upstash.io")
+NAMESPACE = os.getenv("NAMESPACE", open("/etc/hostname").read().strip())
+pAUTH = os.getenv("PAUTH", "denorocks")
+pURL = os.getenv("PURL", "http://localhost:8000")
 
 if not pAUTH:
     raise ValueError("Need to set PAUTH envvar for persistence")
