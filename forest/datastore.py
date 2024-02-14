@@ -88,12 +88,34 @@ class SignalDatastore:
         self.litestream.terminate()
         return await self.litestream.wait()
 
-    async def async_shutdown(self):
+    async def periodic_backup(self, tick_seconds=10) -> bool:
+        while True and not self.shutting_down:
+            await self.async_ensure_backup()
+            await asyncio.sleep(tick_seconds)
+        # one last time
+        await self.async_ensure_backup()
+        return True
+
+    async def start_periodic_backup(self):
+        self.shutting_down = False
+        self.periodic_backup_task = asyncio.get_event_loop().create_task(
+            periodic_backup()
+        )
+
+    async def stop_periodic_backup(self):
+        self.shutting_down = True
+        self.periodic_backup_task.cancel()
+
+    async def async_ensure_backup(self):
         """on shutdown: grab the keystate and post it to the persistence backend"""
         self.keystate = open(f"state/data/{self.account.get('path', '')}").read()
         result = await self.client.post(self.account.get("uuid"), self.keystate)
         logging.debug(f"keystate backed up: {result}")
         return result
+
+    async def async_shutdown(self) -> bool:
+        await self.stop_periodic_backup()
+        return True
 
     async def async_startup(self):
         """on startup: fetch keystate from persistence backend, write it out if it doesn't match the existing contents, then restore more keystate from litestream, then start replication"""
@@ -108,6 +130,7 @@ class SignalDatastore:
         await self.restore_litestream()
         await asyncio.sleep(1)
         await self.start_litestream()
+        asyncio.get_event_loop().call_later(5, start_periodic_backup)
 
     def startup(self):
         # FIXME
@@ -115,7 +138,7 @@ class SignalDatastore:
 
     def shutdown(self):
         # FIXME
-        self.backup_task = asyncio.create_task(self.async_shutdown())
+        self.backup_task = asyncio.create_task(self.async_ensure_backup())
 
     def wait_finished(self):
         # FIXME

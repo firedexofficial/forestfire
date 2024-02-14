@@ -1736,6 +1736,22 @@ async def metrics(request: web.Request) -> web.Response:
     )
 
 
+async def ready_check(request: web.Request) -> web.Response:
+    """TODO: think about what indicates readiness besides the web.Application running"""
+    bot = request.app["bot"]
+    return web.Response(
+        status=200,
+    )
+
+
+async def health_check(request: web.Request) -> web.Response:
+    """TODO: think about what indicates health besides the web.Application running"""
+    bot = request.app["bot"]
+    return web.Response(
+        status=200,
+    )
+
+
 async def restart(request: web.Request) -> web.Response:
     bot = request.app["bot"]
     bot.restart_task = asyncio.create_task(bot.start_process())
@@ -1760,7 +1776,8 @@ app.add_routes(
         web.post("/user/{phonenumber}", send_message_handler),
         web.post("/admin", admin_handler),
         web.post("/restart", restart),
-        web.get("/metrics", aio.web.server_stats),
+        web.get("/health", health_check),
+        web.get("/ready", ready_check),
         web.get("/csv_metrics", metrics),
     ]
 )
