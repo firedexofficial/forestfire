@@ -1,0 +1,17 @@
+dbs:
+  - path: state/data/659922.d/account.db
+    replicas:
+      - url: s3://accounts.localhost:9000/account_659922.db
+        age:
+          identities:
+            - AGE-SECRET-KEY-...
+          recipients:
+            - age...
+  - path: state/data/863740.d/account.db
+    replicas:
+      - url: s3://accounts.localhost:9000/account_863740.db
+        age:
+          identities:
+            - AGE-SECRET-KEY-...
+          recipients:
+            - age...
