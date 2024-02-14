@@ -96,10 +96,10 @@ class SignalDatastore:
         await self.async_ensure_backup()
         return True
 
-    async def start_periodic_backup(self):
+    def start_periodic_backup(self):
         self.shutting_down = False
         self.periodic_backup_task = asyncio.get_event_loop().create_task(
-            periodic_backup()
+            self.periodic_backup()
         )
 
     async def stop_periodic_backup(self):
@@ -130,7 +130,7 @@ class SignalDatastore:
         await self.restore_litestream()
         await asyncio.sleep(1)
         await self.start_litestream()
-        asyncio.get_event_loop().call_later(5, start_periodic_backup)
+        asyncio.get_event_loop().call_later(5, self.start_periodic_backup)
 
     def startup(self):
         # FIXME
