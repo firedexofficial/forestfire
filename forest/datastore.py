@@ -109,8 +109,9 @@ class SignalDatastore:
     async def async_ensure_backup(self):
         """on shutdown: grab the keystate and post it to the persistence backend"""
         self.keystate = open(f"state/data/{self.account.get('path', '')}").read()
-        result = await self.client.post(self.account.get("uuid"), self.keystate)
-        logging.debug(f"keystate backed up: {result}")
+        if (await self.client.get(self.account.get("uuid"))) != self.keystate:
+            result = await self.client.post(self.account.get("uuid"), self.keystate)
+            logging.debug(f"keystate change detected - backed up: {result}")
         return result
 
     async def async_shutdown(self) -> bool:
