@@ -2,10 +2,10 @@
 # Copyright (c) 2021 MobileCoin Inc.
 # Copyright (c) 2021 The Forest Team
 
-from forest.core import Bot, Message, run_bot
+from forest.core import ExtrasBot, Message, run_bot
 
 
-class HelloBot(Bot):
+class HelloBot(ExtrasBot):
     async def do_hello(self, _: Message) -> str:
         return "Hello, world!"
 

@@ -109,6 +109,7 @@ class SignalDatastore:
     async def async_ensure_backup(self):
         """on shutdown: grab the keystate and post it to the persistence backend"""
         self.keystate = open(f"state/data/{self.account.get('path', '')}").read()
+        # compare and store
         if (await self.client.get(self.account.get("uuid"))) != self.keystate:
             result = await self.client.post(self.account.get("uuid"), self.keystate)
             logging.debug(f"keystate change detected - backed up: {result}")
@@ -125,6 +126,7 @@ class SignalDatastore:
             not os.path.exists(f"state/data/{self.account['path']}")
             or self.keystate != open(f"state/data/{self.account['path']}").read()
         ):
+            logging.debug("wrote out keystate as it did not exist")
             self.keystate = open(f"state/data/{self.account['path']}", "w").write(
                 self.keystate
             )

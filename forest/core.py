@@ -97,10 +97,15 @@ def check_valid_recipient(recipient: str) -> bool:
 
 
 async def get_attachment_paths(message: Message) -> list[str]:
-    return [
-        str(Path("./attachments") / attachment["id"])
-        for attachment in message.attachments
-    ]
+    output = []
+    for attachment in message.attachments:
+        attachment_path = str(Path(utils.get_secret("ROOT_DIR")) / Path("./attachments") / attachment["id"])
+        # signal-cli asynchronously downloads attachments
+        # until the path exists and the file is the size expected... sleep
+        while not os.path.exists(attachment_path) or (os.path.getsize(attachment_path) < attachment["size"]):
+            await asyncio.sleep(1)
+        output.append(attachment_path)
+    return output
 
 
 ActivityQueries = pghelp.PGExpressions(
@@ -231,7 +236,6 @@ class Signal:
 
         if utils.RESTORE:
             await self.datastore.async_shutdown()
-        # this still deadlocks. see https://github.com/forestcontact/forest-draft/issues/10
         logging.info("exited".center(60, "="))
         sys.exit(0)  # equivelent to `raise SystemExit()`
         logging.info("called sys.exit but still running, trying os._exit")
@@ -1785,12 +1789,12 @@ app.add_routes(
 app.on_startup.append(add_tiprat)
 
 
-def run_bot(bot: Type[Bot], local_app: web.Application = app) -> None:
+def run_bot(bot: Type[Bot], local_app: web.Application = app, port = 8081) -> None:
     async def start_wrapper(our_app: web.Application) -> None:
         our_app["bot"] = bot()
 
     local_app.on_startup.append(start_wrapper)
-    web.run_app(app, port=8081, host="0.0.0.0", access_log=None)
+    web.run_app(app, port=port, host="0.0.0.0", access_log=None)
 
 
 if __name__ == "__main__":
