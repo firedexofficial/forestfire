@@ -99,10 +99,16 @@ def check_valid_recipient(recipient: str) -> bool:
 async def get_attachment_paths(message: Message) -> list[str]:
     output = []
     for attachment in message.attachments:
-        attachment_path = str(Path(utils.get_secret("ROOT_DIR")) / Path("./attachments") / attachment["id"])
+        attachment_path = str(
+            Path(utils.get_secret("ROOT_DIR"))
+            / Path("./attachments")
+            / attachment["id"]
+        )
         # signal-cli asynchronously downloads attachments
         # until the path exists and the file is the size expected... sleep
-        while not os.path.exists(attachment_path) or (os.path.getsize(attachment_path) < attachment["size"]):
+        while not os.path.exists(attachment_path) or (
+            os.path.getsize(attachment_path) < attachment["size"]
+        ):
             await asyncio.sleep(1)
         output.append(attachment_path)
     return output
@@ -1789,7 +1795,7 @@ app.add_routes(
 app.on_startup.append(add_tiprat)
 
 
-def run_bot(bot: Type[Bot], local_app: web.Application = app, port = 8081) -> None:
+def run_bot(bot: Type[Bot], local_app: web.Application = app, port=8081) -> None:
     async def start_wrapper(our_app: web.Application) -> None:
         our_app["bot"] = bot()
 

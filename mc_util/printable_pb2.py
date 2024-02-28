@@ -7,6 +7,7 @@ from google.protobuf import descriptor as _descriptor
 from google.protobuf import descriptor_pool as _descriptor_pool
 from google.protobuf import symbol_database as _symbol_database
 from google.protobuf.internal import builder as _builder
+
 # @@protoc_insertion_point(imports)
 
 _sym_db = _symbol_database.Default()
@@ -15,22 +16,26 @@ _sym_db = _symbol_database.Default()
 from . import external_pb2 as external__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\x0fprintable.proto\x12\tprintable\x1a\x0e\x65xternal.proto\"\x84\x01\n\x0ePaymentRequest\x12/\n\x0epublic_address\x18\x01 \x01(\x0b\x32\x17.external.PublicAddress\x12\r\n\x05value\x18\x02 \x01(\x04\x12\x0c\n\x04memo\x18\x03 \x01(\t\x12\x10\n\x08token_id\x18\x04 \x01(\x04\x12\x12\n\npayment_id\x18\x05 \x01(\x04\"\x8a\x01\n\x0fTransferPayload\x12\x18\n\x0croot_entropy\x18\x01 \x01(\x0c\x42\x02\x18\x01\x12\x38\n\x11tx_out_public_key\x18\x02 \x01(\x0b\x32\x1d.external.CompressedRistretto\x12\x0c\n\x04memo\x18\x03 \x01(\t\x12\x15\n\rbip39_entropy\x18\x04 \x01(\x0c\"\x94\x01\n\rTxOutGiftCode\x12\x14\n\x0cglobal_index\x18\x01 \x01(\x04\x12\x37\n\x13onetime_private_key\x18\x02 \x01(\x0b\x32\x1a.external.RistrettoPrivate\x12\x34\n\rshared_secret\x18\x03 \x01(\x0b\x32\x1d.external.CompressedRistretto\"\xf4\x01\n\x10PrintableWrapper\x12\x31\n\x0epublic_address\x18\x01 \x01(\x0b\x32\x17.external.PublicAddressH\x00\x12\x34\n\x0fpayment_request\x18\x02 \x01(\x0b\x32\x19.printable.PaymentRequestH\x00\x12\x36\n\x10transfer_payload\x18\x03 \x01(\x0b\x32\x1a.printable.TransferPayloadH\x00\x12\x34\n\x10tx_out_gift_code\x18\x04 \x01(\x0b\x32\x18.printable.TxOutGiftCodeH\x00\x42\t\n\x07wrapperB\x14\n\x12\x63om.mobilecoin.apib\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(
+    b'\n\x0fprintable.proto\x12\tprintable\x1a\x0e\x65xternal.proto"\x84\x01\n\x0ePaymentRequest\x12/\n\x0epublic_address\x18\x01 \x01(\x0b\x32\x17.external.PublicAddress\x12\r\n\x05value\x18\x02 \x01(\x04\x12\x0c\n\x04memo\x18\x03 \x01(\t\x12\x10\n\x08token_id\x18\x04 \x01(\x04\x12\x12\n\npayment_id\x18\x05 \x01(\x04"\x8a\x01\n\x0fTransferPayload\x12\x18\n\x0croot_entropy\x18\x01 \x01(\x0c\x42\x02\x18\x01\x12\x38\n\x11tx_out_public_key\x18\x02 \x01(\x0b\x32\x1d.external.CompressedRistretto\x12\x0c\n\x04memo\x18\x03 \x01(\t\x12\x15\n\rbip39_entropy\x18\x04 \x01(\x0c"\x94\x01\n\rTxOutGiftCode\x12\x14\n\x0cglobal_index\x18\x01 \x01(\x04\x12\x37\n\x13onetime_private_key\x18\x02 \x01(\x0b\x32\x1a.external.RistrettoPrivate\x12\x34\n\rshared_secret\x18\x03 \x01(\x0b\x32\x1d.external.CompressedRistretto"\xf4\x01\n\x10PrintableWrapper\x12\x31\n\x0epublic_address\x18\x01 \x01(\x0b\x32\x17.external.PublicAddressH\x00\x12\x34\n\x0fpayment_request\x18\x02 \x01(\x0b\x32\x19.printable.PaymentRequestH\x00\x12\x36\n\x10transfer_payload\x18\x03 \x01(\x0b\x32\x1a.printable.TransferPayloadH\x00\x12\x34\n\x10tx_out_gift_code\x18\x04 \x01(\x0b\x32\x18.printable.TxOutGiftCodeH\x00\x42\t\n\x07wrapperB\x14\n\x12\x63om.mobilecoin.apib\x06proto3'
+)
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
-_builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'printable_pb2', _globals)
+_builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, "printable_pb2", _globals)
 if _descriptor._USE_C_DESCRIPTORS == False:
-  _globals['DESCRIPTOR']._options = None
-  _globals['DESCRIPTOR']._serialized_options = b'\n\022com.mobilecoin.api'
-  _globals['_TRANSFERPAYLOAD'].fields_by_name['root_entropy']._options = None
-  _globals['_TRANSFERPAYLOAD'].fields_by_name['root_entropy']._serialized_options = b'\030\001'
-  _globals['_PAYMENTREQUEST']._serialized_start=47
-  _globals['_PAYMENTREQUEST']._serialized_end=179
-  _globals['_TRANSFERPAYLOAD']._serialized_start=182
-  _globals['_TRANSFERPAYLOAD']._serialized_end=320
-  _globals['_TXOUTGIFTCODE']._serialized_start=323
-  _globals['_TXOUTGIFTCODE']._serialized_end=471
-  _globals['_PRINTABLEWRAPPER']._serialized_start=474
-  _globals['_PRINTABLEWRAPPER']._serialized_end=718
+    _globals["DESCRIPTOR"]._options = None
+    _globals["DESCRIPTOR"]._serialized_options = b"\n\022com.mobilecoin.api"
+    _globals["_TRANSFERPAYLOAD"].fields_by_name["root_entropy"]._options = None
+    _globals["_TRANSFERPAYLOAD"].fields_by_name[
+        "root_entropy"
+    ]._serialized_options = b"\030\001"
+    _globals["_PAYMENTREQUEST"]._serialized_start = 47
+    _globals["_PAYMENTREQUEST"]._serialized_end = 179
+    _globals["_TRANSFERPAYLOAD"]._serialized_start = 182
+    _globals["_TRANSFERPAYLOAD"]._serialized_end = 320
+    _globals["_TXOUTGIFTCODE"]._serialized_start = 323
+    _globals["_TXOUTGIFTCODE"]._serialized_end = 471
+    _globals["_PRINTABLEWRAPPER"]._serialized_start = 474
+    _globals["_PRINTABLEWRAPPER"]._serialized_end = 718
 # @@protoc_insertion_point(module_scope)
