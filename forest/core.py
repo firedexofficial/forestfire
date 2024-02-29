@@ -336,7 +336,11 @@ class Signal:
             elif isinstance(blob["result"], list):
                 # Message expects a dict with an id, but signal-cli listContacts returns a list
                 # we're usually only get a single contact, so we massage this
-                message_blob = {"id": blob["id"], "result": blob["result"][0]}
+                message_blob = {
+                    "id": blob["id"],
+                    "result": blob["result"][0],
+                    "all_results": blob["result"],
+                }
             else:
                 logging.warning(blob["result"])
         if "error" in blob:
@@ -498,20 +502,19 @@ class Signal:
         self, target_msg: Message, msg: Response, **other_params: Any
     ) -> str:
         """Respond to a message depending on whether it's a DM or group"""
-        logging.debug("responding to %s", target_msg.source)
-        if not (target_msg.source or target_msg.uuid):
+        logging.debug("responding to %s", target_msg.uuid)
+        if not (target_msg.uuid or target_msg.uuid):
             logging.error(json.dumps(target_msg.blob))
         if target_msg.group:
             return await self.send_message(
                 None, msg, group=target_msg.group, **other_params
             )
-        destination = target_msg.source or target_msg.uuid
-        return await self.send_message(destination, msg, **other_params)
+        return await self.send_message(target_msg.uuid, msg, **other_params)
 
     async def send_reaction(self, target_msg: Message, emoji: str) -> None:
         """Send a reaction. Protip: you can use e.g. \N{GRINNING FACE} in python"""
         react = {
-            "target-author": target_msg.source,
+            "target-author": target_msg.uuid,
             "target-timestamp": target_msg.timestamp,
         }
         if target_msg.group:
@@ -520,7 +523,7 @@ class Signal:
             "sendReaction",
             param_dict=react,
             emoji=emoji,
-            recipient=None if target_msg.group else target_msg.source,
+            recipient=None if target_msg.group else target_msg.uuid,
         )
         await self.outbox.put(cmd)
 
@@ -536,7 +539,7 @@ class Signal:
         "Send a typing indicator to the person or group the message is from"
         if msg:
             group = msg.group or ""
-            recipient = msg.source
+            recipient = msg.uuid
         if group:
             await self.outbox.put(rpc("sendTyping", group=[group], stop=stop))
         else:
@@ -595,7 +598,7 @@ def is_admin(msg: Message) -> bool:
     ADMIN = utils.get_secret("ADMIN") or ""
     ADMIN_GROUP = utils.get_secret("ADMIN_GROUP") or ""
     ADMINS = utils.get_secret("ADMINS") or ""
-    source_admin = msg.source and (msg.source in ADMIN or msg.source in ADMINS)
+    source_admin = msg.uuid and (msg.uuid in ADMIN or msg.uuid in ADMINS)
     source_uuid = msg.uuid and (msg.uuid in ADMIN or msg.uuid in ADMINS)
     return source_admin or source_uuid or bool(msg.group and msg.group in ADMIN_GROUP)
 
@@ -976,17 +979,6 @@ class ExtrasBot(Bot):
         return t
 
 
-def compose_payment_content(receipt: str, note: str) -> dict:
-    # serde expects bytes to be u8[], not b64
-    tx = {"mobileCoin": {"receipt": u8(receipt)}}
-    note = note or "check out this java-free payment notification"
-    payment = {"Item": {"notification": {"note": note, "Transaction": tx}}}
-    # SignalServiceMessageContent protobuf represented as JSON (spicy)
-    # destination is outside the content so it doesn't matter,
-    # but it does contain the bot's profileKey
-    return {"dataMessage": {"body": None, "payment": payment}}
-
-
 class PayBot(ExtrasBot):
     @requires_admin
     async def do_fsr(self, msg: Message) -> Response:
@@ -1049,9 +1041,14 @@ class PayBot(ExtrasBot):
         amount_usd = round(await self.mobster.pmob2usd(amount_pmob), 2)
         return f"Thank you for sending {float(amount_mob)} MOB ({amount_usd} USD)"
 
-    async def get_signalpay_address(self, recipient: str) -> Optional[str]:
+    async def get_signalpay_address(
+        self, recipient: Optional[str] = None
+    ) -> Optional[str]:
         "get a receipient's mobilecoin address"
-        result = await self.signal_rpc_request("listContacts", recipient=recipient)
+        # if recipient is None, return the bot's address
+        result = await self.signal_rpc_request(
+            "listContacts", recipient=recipient, allRecipients=not recipient
+        )
         b64_address = (
             result.blob.get("result", {}).get("profile", {}).get("mobileCoinAddress")
         )
@@ -1065,7 +1062,7 @@ class PayBot(ExtrasBot):
         """
         /address
         Returns your MobileCoin address (in standard b58 format.)"""
-        address = await self.get_signalpay_address(msg.source)
+        address = await self.get_signalpay_address(msg.uuid)
         return address or "Sorry, couldn't get your MobileCoin address"
 
     @requires_admin
@@ -1089,21 +1086,6 @@ class PayBot(ExtrasBot):
         if "error" in result:
             await self.admin(f"{result}\nReturned by:\n\n{str(params)[:1024]}...")
         return result
-
-    async def fs_receipt_to_payment_message_content(
-        self, fs_receipt: dict, note: str = ""
-    ) -> dict:
-        full_service_receipt = fs_receipt["result"]["receiver_receipts"][0]
-        # this gets us a Receipt protobuf
-        b64_receipt = mc_util.full_service_receipt_to_b64_receipt(full_service_receipt)
-        # serde expects bytes to be u8[], not b64
-        tx = {"mobileCoin": {"receipt": u8(b64_receipt)}}
-        note = note or "check out this java-free payment notification"
-        payment = {"Item": {"notification": {"note": note, "Transaction": tx}}}
-        # SignalServiceMessageContent protobuf represented as JSON (spicy)
-        # destination is outside the content so it doesn't matter,
-        # but it does contain the bot's profileKey
-        return {"dataMessage": {"body": None, "payment": payment}}
 
     async def build_gift_code(self, amount_pmob: int) -> list[str]:
         """Builds a gift code and returns a list of messages to send, given an amount in pMOB."""
@@ -1268,7 +1250,7 @@ def get_source_or_uuid_from_dict(
     This abstracts over the possibility space, returning a boolean indicator of whether the sender of a Message
     is referenced in a dict, and the value pointed at (if any)."""
     group = msg.group or ""
-    for key in [(msg.source, group), (msg.uuid, group), msg.source, msg.uuid]:
+    for key in [(msg.uuid, group), (msg.uuid, group), msg.uuid, msg.source]:
         if value := dict_.get(key):  # type: ignore
             return True, value
     return False, None
@@ -1673,7 +1655,7 @@ class QuestionBot(PayBot):
         fields: dict[str, Optional[str]] = {}
         for field in ["given_name", "family_name", "about", "mood_emoji"]:
             resp = await self.ask_freeform_question(
-                msg.source, f"value for field {field}?"
+                msg.uuid, f"value for field {field}?"
             )
             if resp and resp.lower() != "none":
                 fields[field] = resp

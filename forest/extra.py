@@ -178,8 +178,7 @@ class DialogBot(TalkBack):
         if fragment_to_set in self.TERMINAL_ANSWERS:
             return "OK, nvm"
         if old_blurb := await self.dialog.get(fragment_to_set):
-            await self.send_message(user, "overwriting:")
-            await self.send_message(user, old_blurb)
+            await self.send_message(user, f"overwriting: {old_blurb}")
         await self.dialog.set(fragment_to_set, blurb)
         return "updated blurb!"
 
