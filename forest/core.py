@@ -1,4 +1,5 @@
 #!/usr/bin/python3.9
+# Copyright (c) 2023-2024 Firedex Inc.
 # Copyright (c) 2021 MobileCoin Inc.
 # Copyright (c) 2021 The Forest Team
 """
@@ -247,24 +248,6 @@ class Signal:
         logging.info("called sys.exit but still running, trying os._exit")
         # call C fn _exit() without calling cleanup handlers, flushing stdio buffers, etc.
         os._exit(1)
-
-    def log_task_result(
-        self,
-        task: asyncio.Task,
-    ) -> None:
-        """
-        Done callback which logs task done result
-        args:
-            task (asyncio.task): Finished task
-        """
-        name = task.get_name() + "-" + getattr(task.get_coro(), "__name__", "")
-        try:
-            result = task.result()
-            logging.info("final result of %s was %s", name, result)
-        except asyncio.CancelledError:
-            logging.info("task %s was cancelled", name)
-        except Exception:  # pylint: disable=broad-except
-            logging.exception("%s errored", name)
 
     def restart_task_callback(
         self,
@@ -657,48 +640,13 @@ class Bot(Signal):
             if not hasattr(getattr(self, f"do_{name}"), "hide")
         ]
         super().__init__(bot_number)
-        self.activity = pghelp.PGInterface(
-            query_strings=ActivityQueries, database=utils.get_secret("DATABASE_URL")
-        )
-        # set of users we've received messages from in the last minute
-        self.seen_users: set[str] = set()
-        self.log_activity_task = asyncio.create_task(self.log_activity())
         self.restart_task = asyncio.create_task(
             self.start_process()
         )  # maybe cancel on sigint?
-        self.restart_task.add_done_callback(self.log_task_result)
         self.handle_messages_task = asyncio.create_task(self.handle_messages())
-        self.handle_messages_task.add_done_callback(self.log_task_result)
         self.handle_messages_task.add_done_callback(
             self.restart_task_callback(self.handle_messages)
         )
-
-    async def log_activity(self) -> None:
-        """
-        every 60s, update the user_activity table with users we've seen
-        runs in the bg as batches to avoid a seperate db query for every message
-        used for signup metrics
-        """
-        if not self.activity.pool:
-            await self.activity.connect_pg()
-            # mypy can't infer that connect_pg creates pool
-            assert self.activity.pool
-        while 1:
-            await asyncio.sleep(60)
-            if not self.seen_users:
-                continue
-            try:
-                async with pghelp.pool.acquire() as conn:
-                    # executemany batches this into an atomic db query
-                    await conn.executemany(
-                        self.activity.queries["log"],
-                        [(name, utils.APP_NAME) for name in self.seen_users],
-                    )
-                    logging.debug("recorded %s seen users", len(self.seen_users))
-                    self.seen_users = set()
-            except asyncpg.UndefinedTableError:
-                logging.info("creating user_activity table")
-                await self.activity.create_table()
 
     async def handle_messages(self) -> None:
         """
@@ -706,11 +654,8 @@ class Bot(Signal):
         set the result for that request. If said result is being rate limited, retry sending it
         after pausing. Otherwise, concurrently respond to each message.
         """
-        metrics_salt = utils.get_secret("METRICS_SALT")
         while True:
             message = await self.inbox.get()
-            if metrics_salt and message.uuid:
-                self.seen_users.add(hash_salt(message.uuid, metrics_salt))
             if message.id and message.id in self.pending_requests:
                 logging.debug("setting result for future %s: %s", message.id, message)
                 self.pending_requests[message.id].set_result(message)

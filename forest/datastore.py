@@ -122,7 +122,7 @@ class SignalDatastore:
     async def async_startup(self):
         """on startup: fetch keystate from persistence backend, write it out if it doesn't match the existing contents, then restore more keystate from litestream, then start replication"""
         self.keystate = await self.client.get(self.account.get("uuid"))
-        if (
+        if self.keystate and (
             not os.path.exists(f"state/data/{self.account['path']}")
             or self.keystate != open(f"state/data/{self.account['path']}").read()
         ):

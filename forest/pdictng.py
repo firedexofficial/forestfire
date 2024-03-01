@@ -64,7 +64,12 @@ class fasterpKVStoreClient(persistentKVStoreClient):
         """Get and return value of an object with the specified key and namespace"""
         key = hash_salt(f"{self.namespace}_{key}")
         async with self.conn.get(f"{self.url}/{key}", headers=self.headers) as resp:
-            value = get_cleartext_value(await resp.text())
+            if resp.status != 200:
+                return None
+            ciphertext = await resp.text()
+            if not ciphertext:
+                return None
+            value = get_cleartext_value(ciphertext)
             return value
 
 
