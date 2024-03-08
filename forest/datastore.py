@@ -6,6 +6,7 @@ import os.path
 import asyncio
 import logging
 
+from typing import Optional, Any, Union
 from subprocess import PIPE, Popen
 from asyncio.subprocess import create_subprocess_exec
 import typing
