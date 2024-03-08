@@ -102,18 +102,19 @@ class SignalDatastore:
             self.periodic_backup()
         )
 
-    async def stop_periodic_backup(self):
+    async def stop_periodic_backup(self) -> None:
         self.shutting_down = True
         self.periodic_backup_task.cancel()
 
-    async def async_ensure_backup(self):
+    async def async_ensure_backup(self) -> Optional[int]:
         """on shutdown: grab the keystate and post it to the persistence backend"""
         self.keystate = open(f"state/data/{self.account.get('path', '')}").read()
         # compare and store
         if (await self.client.get(self.account.get("uuid"))) != self.keystate:
-            result = await self.client.post(self.account.get("uuid"), self.keystate)
+            result = (await self.client.post(self.account.get("uuid"), self.keystate)).status
             logging.debug(f"keystate change detected - backed up: {result}")
-        return result
+            return result
+        return None
 
     async def async_shutdown(self) -> bool:
         await self.stop_periodic_backup()

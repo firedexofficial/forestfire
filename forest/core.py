@@ -319,11 +319,18 @@ class Signal:
             elif isinstance(blob["result"], list):
                 # Message expects a dict with an id, but signal-cli listContacts returns a list
                 # we're usually only get a single contact, so we massage this
-                message_blob = {
-                    "id": blob["id"],
-                    "result": blob["result"][0],
-                    "all_results": blob["result"],
-                }
+                if len(blob["result"]):
+                    message_blob = {
+                        "id": blob["id"],
+                        "result": blob["result"][0],
+                        "all_results": blob["result"],
+                    }
+                else:
+                    message_blob = {
+                        "id": blob["id"],
+                        "result": None,
+                        "all_results": blob["result"],
+                    }
             else:
                 logging.warning(blob["result"])
         if "error" in blob:
