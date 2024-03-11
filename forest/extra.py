@@ -147,12 +147,15 @@ class TalkBack(QuestionBot):
             user_short = f"{user_given}_{uuid.split('-')[1]}"
         else:
             user_short = user_given + uuid
-        await self.displayname_cache.set(uuid, user_short)
-        await self.displayname_lookup_cache.set(user_short, uuid)
-        return user_short
+        # if we were successful in querying the user name
+        if user_given:
+            await self.displayname_cache.set(uuid, user_short)
+            await self.displayname_lookup_cache.set(user_short, uuid)
+            return user_short
+        else:
+            return "NewUser"
 
     async def talkback(self, msg: Message) -> Response:
-        source = msg.uuid or msg.source
         await self.admin(f"{await self.get_displayname(source)} says: {msg.full_text}")
         return None
 

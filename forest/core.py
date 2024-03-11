@@ -328,7 +328,7 @@ class Signal:
                 else:
                     message_blob = {
                         "id": blob["id"],
-                        "result": None,
+                        "result": {},
                         "all_results": blob["result"],
                     }
             else:
