@@ -5,6 +5,7 @@ import sys
 import os.path
 import asyncio
 import logging
+import base64
 
 from typing import Optional, Any, Union
 from subprocess import PIPE, Popen
@@ -47,9 +48,10 @@ class SignalDatastore:
         else:
             if not os.path.exists("state/data/"):
                 os.makedirs("state/data/")
-            accounts_json = os.environ.get("accounts_json")
-            if not accounts_json:
-                raise Exception("No accounts.json and no accounts_json envar!")
+            accounts_json_encoded = os.environ.get("ACCOUNTS_JSON_ENCODED")
+            if not accounts_json_encoded:
+                raise Exception("No accounts.json and no ACCOUNTS_JSON_ENCODED envar!")
+            accounts_json = base64.b64decode(accounts_json_encoded).decode()
             open("state/data/accounts.json", "w").write(accounts_json)
             self.accounts_map = json.loads(accounts_json)
         maybe_account = [
