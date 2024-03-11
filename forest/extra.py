@@ -156,7 +156,7 @@ class TalkBack(QuestionBot):
             return "NewUser"
 
     async def talkback(self, msg: Message) -> Response:
-        await self.admin(f"{await self.get_displayname(source)} says: {msg.full_text}")
+        await self.admin(f"{await self.get_displayname(msg.uuid)} says: {msg.full_text}")
         return None
 
 
