@@ -634,7 +634,6 @@ class Bot(Signal):
     def __init__(self, bot_number: Optional[str] = None) -> None:
         """Creates AND STARTS a bot that routes commands to do_x handlers"""
         self.client_session = aiohttp.ClientSession()
-        self.mobster = payments_monitor.Mobster()
         self.pongs: dict[str, str] = {}
         self.signal_roundtrip_latency: list[Datapoint] = []
         self.pending_response_tasks: list[asyncio.Task] = []
@@ -932,36 +931,6 @@ class ExtrasBot(Bot):
 
 
 class PayBot(ExtrasBot):
-    @requires_admin
-    async def do_fsr(self, msg: Message) -> Response:
-        """
-        Make a request to the Full-Service instance behind the bot. Admin-only.
-        ie) /fsr [command] ([arg1] [val1]( [arg2] [val2])...)"""
-        if not msg.tokens:
-            return "/fsr [command] ([arg1] [val1]( [arg2] [val2]))"
-        if len(msg.tokens) == 1:
-            return await self.mobster.req(dict(method=msg.tokens[0]))
-        if (len(msg.tokens) % 2) == 1:
-            fsr_command = msg.tokens[0]
-            fsr_keys = msg.tokens[1::2]
-            fsr_values = msg.tokens[2::2]
-            params = dict(zip(fsr_keys, fsr_values))
-            return str(await self.mobster.req_(fsr_command, **params))
-        return "/fsr [command] ([arg1] [val1]( [arg2] [val2])...)"
-
-    @requires_admin
-    async def do_setup(self, _: Message) -> str:
-        await self.set_profile(
-            mobilecoin_address=mc_util.b58_wrapper_to_b64_public_address(
-                await self.mobster.ensure_address()
-            )
-        )
-        return "OK"
-
-    @requires_admin
-    async def do_balance(self, _: Message) -> Response:
-        """Returns bot balance in MOB."""
-        return f"Bot has balance of {mc_util.pmob2mob(await self.mobster.get_balance()).quantize(Decimal('1.0000'))} MOB"
 
     async def handle_message(self, message: Message) -> Response:
         if message.payment:
@@ -970,28 +939,8 @@ class PayBot(ExtrasBot):
         return await super().handle_message(message)
 
     async def handle_payment(self, message: Message) -> None:
-        """Decode the receipt, then update balances.
-        Blocks on transaction completion, run concurrently"""
-        assert message.payment
-        logging.info(message.payment)
-        amount_pmob = await self.mobster.get_receipt_amount_pmob(
-            message.payment["receipt"]
-        )
-        if amount_pmob is None:
-            await self.respond(
-                message, "That looked like a payment, but we couldn't parse it"
-            )
-            return
-        amount_mob = float(mc_util.pmob2mob(amount_pmob))
-        amount_usd_cents = round(amount_mob * await self.mobster.get_rate() * 100)
-        await self.respond(message, await self.payment_response(message, amount_pmob))
-
-    async def payment_response(self, msg: Message, amount_pmob: int) -> Response:
-        """Triggers on successful payment"""
-        del msg  # shush linter
-        amount_mob = float(mc_util.pmob2mob(amount_pmob))
-        amount_usd = round(await self.mobster.pmob2usd(amount_pmob), 2)
-        return f"Thank you for sending {float(amount_mob)} MOB ({amount_usd} USD)"
+        """ Implemented by individual bots in the absence of Full-Service """
+        raise NotImplementedError
 
     async def get_signalpay_address(
         self, recipient: Optional[str] = None
@@ -1031,6 +980,69 @@ class PayBot(ExtrasBot):
             )
             return "OK"
         return "pass arguments for rename"
+
+
+class FsrPayBot(PayBot):
+
+    """ Class contains Full Service-backed payment functionality. """
+    def __init__(self, bot_number: Optional[str] = None) -> None:
+        self.mobster = payments_monitor.Mobster()
+        super().__init__(bot_number)
+
+    @requires_admin
+    async def do_fsr(self, msg: Message) -> Response:
+        """
+        Make a request to the Full-Service instance behind the bot. Admin-only.
+        ie) /fsr [command] ([arg1] [val1]( [arg2] [val2])...)"""
+        if not msg.tokens:
+            return "/fsr [command] ([arg1] [val1]( [arg2] [val2]))"
+        if len(msg.tokens) == 1:
+            return await self.mobster.req(dict(method=msg.tokens[0]))
+        if (len(msg.tokens) % 2) == 1:
+            fsr_command = msg.tokens[0]
+            fsr_keys = msg.tokens[1::2]
+            fsr_values = msg.tokens[2::2]
+            params = dict(zip(fsr_keys, fsr_values))
+            return str(await self.mobster.req_(fsr_command, **params))
+        return "/fsr [command] ([arg1] [val1]( [arg2] [val2])...)"
+
+    @requires_admin
+    async def do_setup(self, _: Message) -> str:
+        await self.set_profile(
+            mobilecoin_address=mc_util.b58_wrapper_to_b64_public_address(
+                await self.mobster.ensure_address()
+            )
+        )
+        return "OK"
+
+    @requires_admin
+    async def do_balance(self, _: Message) -> Response:
+        """Returns bot balance in MOB."""
+        return f"Bot has balance of {mc_util.pmob2mob(await self.mobster.get_balance()).quantize(Decimal('1.0000'))} MOB"
+
+    async def handle_payment(self, message: Message) -> None:
+        """Decode the receipt, then update balances.
+        Blocks on transaction completion, run concurrently"""
+        assert message.payment
+        logging.info(message.payment)
+        amount_pmob = await self.mobster.get_receipt_amount_pmob(
+            message.payment["receipt"]
+        )
+        if amount_pmob is None:
+            await self.respond(
+                message, "That looked like a payment, but we couldn't parse it"
+            )
+            return
+        amount_mob = float(mc_util.pmob2mob(amount_pmob))
+        amount_usd_cents = round(amount_mob * await self.mobster.get_rate() * 100)
+        await self.respond(message, await self.payment_response(message, amount_pmob))
+
+    async def payment_response(self, msg: Message, amount_pmob: int) -> Response:
+        """Triggers on successful payment"""
+        del msg  # shush linter
+        amount_mob = float(mc_util.pmob2mob(amount_pmob))
+        amount_usd = round(await self.mobster.pmob2usd(amount_pmob), 2)
+        return f"Thank you for sending {float(amount_mob)} MOB ({amount_usd} USD)"
 
     async def mob_request(self, method: str, **params: Any) -> dict:
         """Pass a request through to full-service, but send a message to an admin in case of error"""
