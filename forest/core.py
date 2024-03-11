@@ -23,7 +23,7 @@ import string
 import sys
 import time
 import traceback
-import urllib
+import urllib.parse
 import uuid
 from asyncio import Queue, StreamReader, StreamWriter
 from asyncio.subprocess import PIPE
@@ -108,7 +108,7 @@ async def get_attachment_paths(message: Message) -> list[str]:
         # signal-cli asynchronously downloads attachments
         # until the path exists and the file is the size expected... sleep
         while not os.path.exists(attachment_path) or (
-            os.path.getsize(attachment_path) < attachment["size"]
+            os.path.getsize(attachment_path) < int(attachment["size"])
         ):
             await asyncio.sleep(1)
         output.append(attachment_path)
@@ -939,7 +939,7 @@ class PayBot(ExtrasBot):
         return await super().handle_message(message)
 
     async def handle_payment(self, message: Message) -> None:
-        """ Implemented by individual bots in the absence of Full-Service """
+        """Implemented by individual bots in the absence of Full-Service"""
         raise NotImplementedError
 
     async def get_signalpay_address(
@@ -983,8 +983,8 @@ class PayBot(ExtrasBot):
 
 
 class FsrPayBot(PayBot):
+    """Class contains Full Service-backed payment functionality."""
 
-    """ Class contains Full Service-backed payment functionality. """
     def __init__(self, bot_number: Optional[str] = None) -> None:
         self.mobster = payments_monitor.Mobster()
         super().__init__(bot_number)
@@ -1623,7 +1623,6 @@ class QuestionBot(PayBot):
             )
             if resp and resp.lower() != "none":
                 fields[field] = resp
-        fields["mobilecoin_address"] = await self.mobster.ensure_address()
         attachments = await get_attachment_paths(msg)
         if attachments:
             fields["profile_path"] = attachments[0]
@@ -1741,7 +1740,7 @@ app.add_routes(
 app.on_startup.append(add_tiprat)
 
 
-def run_bot(bot: Type[Bot], local_app: web.Application = app, port=8081) -> None:
+def run_bot(bot: Type[Bot], local_app: web.Application = app, port: int = 8081) -> None:
     async def start_wrapper(our_app: web.Application) -> None:
         our_app["bot"] = bot()
 

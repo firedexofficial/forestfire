@@ -25,7 +25,7 @@ class persistentKVStoreClient:
     async def post(self, key: str, data: str) -> str:
         raise NotImplementedError
 
-    async def get(self, key: str) -> str:
+    async def get(self, key: str) -> Optional[str]:
         raise NotImplementedError
 
 
@@ -60,7 +60,7 @@ class fasterpKVStoreClient(persistentKVStoreClient):
         ) as resp:
             return await resp.text()
 
-    async def get(self, key: str) -> str:
+    async def get(self, key: str) -> Optional[str]:
         """Get and return value of an object with the specified key and namespace"""
         key = hash_salt(f"{self.namespace}_{key}")
         async with self.conn.get(f"{self.url}/{key}", headers=self.headers) as resp:
