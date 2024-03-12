@@ -141,7 +141,7 @@ class TalkBack(QuestionBot):
             return maybe_displayname
         maybe_user_profile = await self.profile_cache.get(uuid)
         result = await self.signal_rpc_request("listContacts", recipient=uuid)
-        user_given = result.blob.get("result", {}).get("profile", {}).get("givenName")
+        user_given = result.blob.get("result", {}).get("profile", {}).get("givenName", "")
         user_given = user_given.replace(" ", "_")
         if uuid and ("+" not in uuid and "-" in uuid):
             user_short = f"{user_given}_{uuid.split('-')[1]}"
