@@ -909,7 +909,14 @@ class ExtrasBot(Bot):
     async def do_signalme(self, _: Message) -> Response:
         """signalme
         Returns a link to share the bot with friends!"""
-        return f"https://signal.me/#p/{self.bot_number}"
+        if self.datastore.keystate:
+            username = json.loads(self.datastore.keystate).get("username")
+            return (
+                (await self.signal_rpc_request("updateAccount", username=username))
+                .blob.get("result", {})
+                .get("usernameLink", "Username not set.")
+            )
+        return "Couldn't provide a signal.me link for this bot."
 
     @hide
     async def do_rot13(self, msg: Message) -> Response:
