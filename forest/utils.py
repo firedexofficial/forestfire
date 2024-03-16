@@ -24,7 +24,24 @@ logger_class = logging.getLoggerClass()
 
 logger = logging.getLogger()
 logger.setLevel("DEBUG")
-fmt = logging.Formatter("{levelname} {module}:{lineno}: {message}", style="{")
+if os.getenv("LOGJSON") or os.getenv("LOG_JSON"):
+    # See example code at https://pypi.org/project/python-json-logger/
+    class CustomJsonFormatter(jsonlogger.JsonFormatter):
+        def add_fields(self, log_record, record, message_dict):
+            super(CustomJsonFormatter, self).add_fields(log_record, record, message_dict)
+
+            if not log_record.get('timestamp'):
+                # this doesn't use record.created, so it is slightly off
+                now = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+                log_record['timestamp'] = now
+            if log_record.get('level'):
+                log_record['level'] = log_record['level'].upper()
+            else:
+                log_record['level'] = record.levelname
+
+    fmt = CustomJsonFormatter('%(timestamp)s %(level)s %(name)s %(message)s')
+else:
+    fmt = logging.Formatter("{levelname} {module}:{lineno}: {message}", style="{")
 console_handler = logging.StreamHandler()
 console_handler.setLevel(
     ((os.getenv("LOGLEVEL") or os.getenv("LOG_LEVEL")) or "DEBUG").upper()
