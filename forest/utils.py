@@ -2,7 +2,7 @@
 # Copyright (c) 2021 MobileCoin Inc.
 # Copyright (c) 2021 The Forest Team
 import functools
-import jsonlogger
+from pythonjsonlogger import jsonlogger
 import logging
 import shutil
 import os
@@ -108,12 +108,12 @@ def get_secret(key: str, env: Optional[str] = None) -> str:
 
 ## Parameters for easy access and ergonomic use
 
-APP_NAME = os.getenv("FLY_APP_NAME")
-URL = os.getenv("URL_OVERRIDE", f"https://{APP_NAME}.fly.dev")
-LOCAL = os.getenv("FLY_APP_NAME") is None
+# local is when neither running on FLY nor running on K8S
+LOCAL = (os.getenv("FLY_APP_NAME") is None) and (os.getenv("KUBERNETES_SERVICE_PORT") is None)
+
 ROOT_DIR = get_secret("ROOT_DIR") or "/app" if not LOCAL else "."
 SIGNAL = "signal-cli"
-RESTORE = get_secret("RESTORE") or True
+RESTORE = get_secret("RESTORE")
 
 maybe_path = get_secret("SIGNAL_PATH")
 if maybe_path and Path(maybe_path).exists():

@@ -10,10 +10,15 @@ from typing import Any, Generic, Optional, TypeVar, overload
 import aiohttp
 from forest.cryptography import get_ciphertext_value, get_cleartext_value, hash_salt
 
+import subprocess
 # def hash_salt(v): return v
 # def get_cleartext_value(v): return v
 # def get_ciphertext_value(v): return v
-NAMESPACE = os.getenv("NAMESPACE", open("/etc/hostname").read().strip())
+
+# /etc/hostname DNE on MacOS
+HOSTNAME = subprocess.check_call('hostname', shell=True)
+
+NAMESPACE = os.getenv("NAMESPACE", HOSTNAME)
 pAUTH = os.getenv("PAUTH", "denorocks")
 pURL = os.getenv("PURL", "http://localhost:8000")
 
