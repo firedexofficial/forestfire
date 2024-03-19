@@ -2,6 +2,7 @@
 # Copyright (c) 2021 MobileCoin Inc.
 # Copyright (c) 2021 The Forest Team
 import functools
+import jsonlogger
 import logging
 import shutil
 import os
