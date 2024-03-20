@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Optional, cast, Dict
 import phonenumbers as pn
 from phonenumbers import NumberParseException
-
+import datetime
 
 def FuckAiohttp(record: logging.LogRecord) -> bool:
     str_msg = str(getattr(record, "msg", ""))
@@ -33,7 +33,7 @@ if os.getenv("LOGJSON") or os.getenv("LOG_JSON"):
 
             if not log_record.get('timestamp'):
                 # this doesn't use record.created, so it is slightly off
-                now = datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+                now = datetime.datetime.now(datetime.UTC).strftime('%Y-%m-%dT%H:%M:%S.%fZ')
                 log_record['timestamp'] = now
             if log_record.get('level'):
                 log_record['level'] = log_record['level'].upper()
