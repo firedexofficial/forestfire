@@ -10,13 +10,14 @@ from typing import Any, Generic, Optional, TypeVar, overload
 import aiohttp
 from forest.cryptography import get_ciphertext_value, get_cleartext_value, hash_salt
 
-import subprocess
+import socket
+
 # def hash_salt(v): return v
 # def get_cleartext_value(v): return v
 # def get_ciphertext_value(v): return v
 
 # /etc/hostname DNE on MacOS
-HOSTNAME = subprocess.check_call('hostname', shell=True)
+HOSTNAME = socket.gethostname()
 
 NAMESPACE = os.getenv("NAMESPACE", HOSTNAME)
 pAUTH = os.getenv("PAUTH", "denorocks")
