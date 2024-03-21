@@ -74,7 +74,9 @@ class SignalDatastore:
     async def restore_litestream(self) -> None:
         """run the command to restore a database from litestream"""
         self.litestream_restore = await create_subprocess_exec(
-            *self.litestream_restore_cmd
+            *self.litestream_restore_cmd,
+            stdout=PIPE,
+            stderr=PIPE
         )
         await self.litestream_restore.wait()
 
@@ -83,6 +85,7 @@ class SignalDatastore:
         self.litestream = await create_subprocess_exec(
             *self.litestream_replicate_cmd,
             stdout=PIPE,
+            stderr=PIPE
         )
         assert self.litestream.stdout
         line = await self.litestream.stdout.readline()
