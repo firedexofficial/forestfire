@@ -44,7 +44,6 @@ from typing import (
 
 import aiohttp
 import asyncpg
-import termcolor
 from aiohttp import web
 from phonenumbers import NumberParseException
 from prometheus_async import aio
@@ -181,7 +180,7 @@ class Signal:
             proc_launch_time = time.time()
             # this ought to FileNotFoundError but doesn't
             self.proc = await asyncio.create_subprocess_exec(
-                *command, stdin=PIPE, stdout=PIPE
+                *command, stdin=PIPE, stdout=PIPE, stderr=PIPE
             )
             logging.info(
                 "started %s @ %s with PID %s",
@@ -190,11 +189,18 @@ class Signal:
                 self.proc.pid,
             )
             assert self.proc.stdout and self.proc.stdin
-            asyncio.create_task(self.read_signal_stdout(self.proc.stdout))
+            asyncio.create_task(
+                self.read_signal_stdout(self.proc.stdout), name="read_signal_stdout"
+            )
+            asyncio.create_task(
+                self.read_signal_stderr(self.proc.stderr), name="read_signal_stderr"
+            )
             # prevent the previous signal client's write task from stealing commands from the outbox queue
             if write_task:
                 write_task.cancel()
-            write_task = asyncio.create_task(self.write_commands(self.proc.stdin))
+            write_task = asyncio.create_task(
+                self.write_commands(self.proc.stdin), name="write_commands"
+            )
             returncode = await self.proc.wait()
             proc_exit_time = time.time()
             runtime = proc_exit_time - proc_launch_time
@@ -258,11 +264,20 @@ class Signal:
             if self.sigints > 1:
                 return
             if asyncio.iscoroutinefunction(_func):
-                task = asyncio.create_task(_func())
+                task = asyncio.create_task(_func(), name="restart_task")
                 task.add_done_callback(self.restart_task_callback(_func))
                 logging.info("%s restarting", name)
 
         return handler
+
+    async def read_signal_stderr(self, stream: StreamReader) -> None:
+        """Read signal-cli error output and route to log as JSON"""
+        while True:
+            line = (await stream.readline()).decode().strip()
+            if not line:
+                break
+            logging.error({"signal-cli error": line})
+        logging.info("stopped reading signal stderr")
 
     async def read_signal_stdout(self, stream: StreamReader) -> None:
         """Read signal-cli output but delegate handling it"""
@@ -280,17 +295,15 @@ class Signal:
         try:
             blob = json.loads(line)
         except json.JSONDecodeError:
-            logging.info("signal: %s", line)
+            logging.info("signal: %s", blob)
             return
         if "error" in blob:
             logging.info("signal: %s", line)
             error = json.dumps(blob["error"])
-            logging.error(
-                json.dumps(blob).replace(error, termcolor.colored(error, "red"))
-            )
+            logging.error(blob)
             if "traceback" in blob:
                 exception, *tb = blob["traceback"].split("\n")
-                logging.error(termcolor.colored(exception, "red"))
+                logging.error(exception)
                 # maybe also send this to admin as a signal message
                 for _line in tb:
                     logging.error(_line)
@@ -306,7 +319,7 @@ class Signal:
         "turn rpc blobs into the appropriate number of Messages and put them in the inbox"
         message_blob: Optional[JSON] = None
         if blob.get("id") != "PONG":
-            logging.info(json.dumps(blob))
+            logging.info(blob)
         if "params" in blob:
             if isinstance(blob["params"], list):
                 for msg in blob["params"]:
@@ -573,7 +586,7 @@ class Signal:
             if not command.get("method"):
                 logging.error("command without method: %s", command)
             if command.get("method") != "receive":
-                logging.info("input to signal: %s", json.dumps(command))
+                logging.info({"input to signal": command})
             if pipe.is_closing():
                 logging.error("signal stdin pipe is closed")
             pipe.write(json.dumps(command).encode() + b"\n")
@@ -647,9 +660,11 @@ class Bot(Signal):
         ]
         super().__init__(bot_number)
         self.restart_task = asyncio.create_task(
-            self.start_process()
+            self.start_process(), name="start_process"
         )  # maybe cancel on sigint?
-        self.handle_messages_task = asyncio.create_task(self.handle_messages())
+        self.handle_messages_task = asyncio.create_task(
+            self.handle_messages(), name="handle_messages"
+        )
         self.handle_messages_task.add_done_callback(
             self.restart_task_callback(self.handle_messages)
         )
@@ -671,10 +686,7 @@ class Bot(Signal):
                     and message.id in self.pending_messages_sent
                 ):
                     sent_json_message = self.pending_messages_sent.pop(message.id)
-                    warn = termcolor.colored(
-                        "waiting to retry send after rate limit. message: %s", "red"
-                    )
-                    logging.warning(warn, sent_json_message)
+                    logging.warning({"ratelimited": sent_json_message})
                     self.backoff = True
                     await asyncio.sleep(4)
                     rpc_id = f"retry-send-{get_uid()}"
@@ -684,7 +696,12 @@ class Bot(Signal):
                 continue
             self.pending_response_tasks = [
                 task for task in self.pending_response_tasks if not task.done()
-            ] + [asyncio.create_task(self.respond_and_collect_metrics(message))]
+            ] + [
+                asyncio.create_task(
+                    self.respond_and_collect_metrics(message),
+                    name="respond_and_collect_metrics for message",
+                )
+            ]
 
     # maybe this is merged with dispatch_message?
     async def respond_and_collect_metrics(self, message: Message) -> None:
@@ -705,7 +722,10 @@ class Bot(Signal):
             exception_traceback = "".join(traceback.format_exception(*sys.exc_info()))
             logging.info("error handling message %s %s", message, exception_traceback)
             self.pending_response_tasks.append(
-                asyncio.create_task(self.admin(f"{message}\n{exception_traceback}"))
+                asyncio.create_task(
+                    self.admin(f"{message}\n{exception_traceback}"),
+                    name="send_exception_admin",
+                )
             )
         python_delta = round(time.time() - start_time, 3)
         note = message.arg0 or ""
@@ -941,7 +961,7 @@ class PayBot(ExtrasBot):
 
     async def handle_message(self, message: Message) -> Response:
         if message.payment:
-            asyncio.create_task(self.handle_payment(message))
+            asyncio.create_task(self.handle_payment(message), name="handle_payment")
             return None
         return await super().handle_message(message)
 
@@ -1197,7 +1217,8 @@ class FsrPayBot(PayBot):
                 receipt=b64_receipt,
                 note=receipt_message,
                 recipient=recipient,
-            )
+            ),
+            name="sendPaymentNotification request",
         )
         if confirm_tx_timeout:
             status = await self.confirm_tx_timeout(tx_id, recipient, confirm_tx_timeout)
@@ -1716,7 +1737,9 @@ async def health_check(request: web.Request) -> web.Response:
 
 async def restart(request: web.Request) -> web.Response:
     bot = request.app["bot"]
-    bot.restart_task = asyncio.create_task(bot.start_process())
+    bot.restart_task = asyncio.create_task(
+        bot.start_process(), name="bot.start_process"
+    )
     bot.restart_task.add_done_callback(functools.partial(bot.handle_task))
     return web.Response(status=200)
 
@@ -1752,7 +1775,7 @@ def run_bot(bot: Type[Bot], local_app: web.Application = app, port: int = 8081) 
         our_app["bot"] = bot()
 
     local_app.on_startup.append(start_wrapper)
-    web.run_app(app, port=port, host="0.0.0.0", access_log=None)
+    web.run_app(app, port=port, host="0.0.0.0", access_log=None, print=logging.debug)
 
 
 if __name__ == "__main__":
