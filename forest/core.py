@@ -276,7 +276,7 @@ class Signal:
             line = (await stream.readline()).decode().strip()
             if not line:
                 break
-            logging.error({"signal-cli error": line})
+            logging.warning({"signal-cli error": line})
         logging.info("stopped reading signal stderr")
 
     async def read_signal_stdout(self, stream: StreamReader) -> None:
