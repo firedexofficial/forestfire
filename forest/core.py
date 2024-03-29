@@ -295,7 +295,7 @@ class Signal:
         try:
             blob = json.loads(line)
         except json.JSONDecodeError:
-            logging.info("signal: %s", blob)
+            logging.info("signal: %s", line)
             return
         if "error" in blob:
             logging.info("signal: %s", line)
