@@ -975,7 +975,7 @@ class PayBot(ExtrasBot):
         "get a receipient's mobilecoin address"
         # if recipient is None, return the bot's address
         result = await self.signal_rpc_request(
-            "listContacts", recipient=recipient, allRecipients=not recipient
+            "listContacts", recipient=recipient, allRecipients=True
         )
         b64_address = (
             result.blob.get("result", {}).get("profile", {}).get("mobileCoinAddress")
