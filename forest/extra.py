@@ -78,6 +78,12 @@ class TalkBack(QuestionBot):
             "displayname_lookup_cache"
         )
         super().__init__()
+        # okay, this now maps the tag (restore key) of each of the above to the instance of the PersistDict class
+        self.state = {
+            self.__getattribute__(attr).tag: self.__getattribute__(attr)
+            for attr in dir(self)
+            if isinstance(self.__getattribute__(attr), aPersistDict)
+        }
 
     async def handle_message(self, message: Message) -> Response:
         if message.quoted_text and is_admin(message):
@@ -141,7 +147,9 @@ class TalkBack(QuestionBot):
             return maybe_displayname
         maybe_user_profile = await self.profile_cache.get(uuid)
         result = await self.signal_rpc_request("listContacts", recipient=uuid)
-        user_given = result.blob.get("result", {}).get("profile", {}).get("givenName", "")
+        user_given = (
+            result.blob.get("result", {}).get("profile", {}).get("givenName", "")
+        )
         user_given = user_given.replace(" ", "_")
         if uuid and ("+" not in uuid and "-" in uuid):
             user_short = f"{user_given}_{uuid.split('-')[1]}"
@@ -155,8 +163,16 @@ class TalkBack(QuestionBot):
         else:
             return "NewUser"
 
+    @requires_admin
+    async def do_dump(self, _: Message) -> Response:
+        """dump
+        returns a JSON serialization of current state"""
+        return json.dumps({k: v.dict_ for (k, v) in self.state.items()}, indent=2)
+
     async def talkback(self, msg: Message) -> Response:
-        await self.admin(f"{await self.get_displayname(msg.uuid)} says: {msg.full_text}")
+        await self.admin(
+            f"{await self.get_displayname(msg.uuid)} says: {msg.full_text}"
+        )
         return None
 
 
