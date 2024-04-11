@@ -188,7 +188,7 @@ class Signal:
                 self.bot_number,
                 self.proc.pid,
             )
-            assert self.proc.stdout and self.proc.stdin
+            assert self.proc.stdout and self.proc.stdin and self.proc.stderr
             asyncio.create_task(
                 self.read_signal_stdout(self.proc.stdout), name="read_signal_stdout"
             )

@@ -7,12 +7,13 @@ import logging
 import shutil
 import os
 from pathlib import Path
-from typing import Optional, cast, Dict
+from typing import Optional, cast, Dict, Any
 import phonenumbers as pn
 from phonenumbers import NumberParseException
 import datetime
 
-def FuckAiohttp(record: logging.LogRecord) -> bool:
+
+def QuietAiohttp(record: logging.LogRecord) -> bool:
     str_msg = str(getattr(record, "msg", ""))
     if "was destroyed but it is pending" in str_msg:
         return False
@@ -25,27 +26,32 @@ logger_class = logging.getLoggerClass()
 
 logger = logging.getLogger()
 logger.setLevel("DEBUG")
+
+
 # See example code at https://pypi.org/project/python-json-logger/
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
-    def add_fields(self, log_record, record, message_dict):
+    def add_fields(
+        self, log_record: Dict[Any, Any], record: Any, message_dict: Dict[Any, Any]
+    ) -> None:
         super(CustomJsonFormatter, self).add_fields(log_record, record, message_dict)
 
-        if not log_record.get('timestamp'):
+        if not log_record.get("timestamp"):
             # this doesn't use record.created, so it is slightly off
-            now = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S.%fZ')
-            log_record['timestamp'] = now
-        if log_record.get('level'):
-            log_record['level'] = log_record['level'].upper()
+            now = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+            log_record["timestamp"] = now
+        if log_record.get("level"):
+            log_record["level"] = log_record["level"].upper()
         else:
-            log_record['level'] = record.levelname
+            log_record["level"] = record.levelname
 
-fmt = CustomJsonFormatter('%(timestamp)s %(level)s %(name)s %(message)s')
+
+fmt = CustomJsonFormatter("%(timestamp)s %(level)s %(name)s %(message)s")
 console_handler = logging.StreamHandler()
 console_handler.setLevel(
     ((os.getenv("LOGLEVEL") or os.getenv("LOG_LEVEL")) or "DEBUG").upper()
 )
 console_handler.setFormatter(fmt)
-console_handler.addFilter(FuckAiohttp)
+console_handler.addFilter(QuietAiohttp)
 logger.addHandler(console_handler)
 logging.getLogger("asyncio").setLevel("INFO")
 
@@ -106,7 +112,9 @@ def get_secret(key: str, env: Optional[str] = None) -> str:
 ## Parameters for easy access and ergonomic use
 
 # local is when neither running on FLY nor running on K8S
-LOCAL = (os.getenv("FLY_APP_NAME") is None) and (os.getenv("KUBERNETES_SERVICE_PORT") is None)
+LOCAL = (os.getenv("FLY_APP_NAME") is None) and (
+    os.getenv("KUBERNETES_SERVICE_PORT") is None
+)
 
 ROOT_DIR = get_secret("ROOT_DIR") or "/app" if not LOCAL else "."
 SIGNAL = "signal-cli"
@@ -135,7 +143,7 @@ if get_secret("LOGFILES") or not LOCAL:
     handler = logging.FileHandler("debug.log")
     handler.setLevel("DEBUG")
     handler.setFormatter(fmt)
-    handler.addFilter(FuckAiohttp)
+    handler.addFilter(QuietAiohttp)
     logger.addHandler(handler)
 
 
