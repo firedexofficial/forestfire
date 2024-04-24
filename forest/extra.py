@@ -1,18 +1,20 @@
 # the alternative strategy is like, invent an intermediate representation and notation (and visual frontend), or parse Python and hope folks don't use layers of abstraction that one needs runtime introspection to destructure
 import ast
-import sys
+import asyncio
 import json
+import os
 import string
+import sys
+from typing import Any, Optional
 
-from typing import Optional, Any
 from forest import utils
 from forest.core import (
-    QuestionBot,
-    is_admin,
     Message,
+    QuestionBot,
     Response,
-    requires_admin,
     get_uid,
+    is_admin,
+    requires_admin,
 )
 from forest.pdictng import aPersistDict
 
@@ -180,6 +182,22 @@ class DialogBot(TalkBack):
     def __init__(self) -> None:
         self.dialog = Dialog()
         super().__init__()
+        # wait one second for everything to settle, then create a task to check for dialog.json in PWD and load
+        self.dialog_load_task = asyncio.get_event_loop().call_later(
+            1, lambda: asyncio.create_task(self.finish_init_by_loading())
+        )
+
+    async def finish_init_by_loading(self) -> None:
+        """Loads dialog from dialog.json in PWD"""
+        # wait for dialog init task to complete
+        await self.dialog.init_task
+        # if dict is still empty
+        if not self.dialog.dict_ and os.path.exists("dialog.json"):
+            async with self.dialog.rwlock:
+                to_load = json.loads(open("dialog.json").read())
+                for k, v in to_load.items():
+                    # this uploads to the persistence backend
+                    await self.dialog._set(k, v)
 
     @requires_admin
     async def do_dialogset(self, msg: Message) -> Response:
