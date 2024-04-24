@@ -159,6 +159,23 @@ class aPersistDict(Generic[V]):
         async with self.rwlock:
             return self.dict_.get(key) or default
 
+    async def get_key_by_value(
+        self, value: str, default: Optional[str] = None
+    ) -> Optional[str]:
+        """Analagous to destructuring via list comprehension, only faster."""
+        if self.write_task:
+            await self.write_task
+            self.write_task = None
+        # then grab the lock
+        async with self.rwlock:
+            dict_values_as_list = list(self.dict_.values())
+            if value in dict_values_as_list:
+                index_of_value = dict_values_as_list.index(value)
+                dict_keys_as_list = list(self.dict_.keys())
+                return dict_keys_as_list[index_of_value]
+            else:
+                return default
+
     async def keys(self) -> list[str]:
         async with self.rwlock:
             return list(self.dict_.keys())
