@@ -79,7 +79,10 @@ def load_secrets(env: Optional[str] = None, overwrite: bool = False) -> None:
         env = os.environ.get("ENV", "dev")
     try:
         logging.info("loading secrets from %s_secrets", env)
-        secrets = parse_secrets(open(f"{env}_secrets").read())
+        if not os.path.exists(f"{env}_secrets"):
+            secrets = parse_secrets(open(".env").read())
+        else:
+            secrets = parse_secrets(open(f"{env}_secrets").read())
         if overwrite:
             new_env = secrets
         else:
