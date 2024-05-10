@@ -183,6 +183,8 @@ class TalkBack(QuestionBot):
         key = message.arg2
         value = message.arg3
         first = await self.state.get(state_location).get(key)
+        if "tokens" in state_location:
+            first = "[REDACTED]"
         return {
             "original_value": first,
             "set_result": await self.state.get(state_location).set(key, value),
