@@ -169,7 +169,24 @@ class TalkBack(QuestionBot):
     async def do_dump(self, _: Message) -> Response:
         """dump
         returns a JSON serialization of current state"""
-        return json.dumps({k: v.dict_ for (k, v) in self.state.items()}, indent=2)
+        return json.dumps(
+            {k: v.dict_ for (k, v) in self.state.items() if "tokens" not in k}, indent=2
+        )
+
+    @requires_admin
+    async def do_set(self, message: Message) -> Response:
+        """set
+        set [pdict] [key] [value]
+        manipulates a key in a specified pdict
+        returns the orignal value and the result of the set command"""
+        state_location = message.arg1
+        key = message.arg2
+        value = message.arg3
+        first = await self.state.get(state_location).get(key)
+        return {
+            "original_value": first,
+            "set_result": await self.state.get(state_location).set(key, value),
+        }
 
     async def talkback(self, msg: Message) -> Response:
         await self.admin(
