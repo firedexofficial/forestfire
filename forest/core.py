@@ -52,7 +52,7 @@ from ulid2 import generate_ulid_as_base32 as get_uid
 
 # framework
 import mc_util
-from forest import payments_monitor, pghelp, string_dist, utils, datastore
+from forest import payments_monitor, pghelp, string_dist, utils
 from forest.cryptography import hash_salt
 from forest.message import AuxinMessage, Message, StdioMessage
 
@@ -150,7 +150,6 @@ class Signal:
                 bot_number = utils.get_secret("BOT_NUMBER")
         logging.debug("bot number: %s", bot_number)
         self.bot_number = bot_number
-        self.datastore = datastore.SignalDatastore(bot_number)
         self.proc: Optional[subprocess.Process] = None
         self.inbox: Queue[Message] = Queue()
         self.outbox: Queue[dict] = Queue()
@@ -170,8 +169,6 @@ class Signal:
         write_task: Optional[asyncio.Task] = None
         restart_count = 0
         max_backoff = 15
-        if utils.RESTORE:
-            await self.datastore.async_startup()
         while self.sigints == 0 and not self.exiting:
             path = utils.SIGNAL_PATH
             path += " --trust-new-identities always"
@@ -247,8 +244,6 @@ class Signal:
 
         await pghelp.pool.close()
 
-        if utils.RESTORE:
-            await self.datastore.async_shutdown()
         logging.info("exited".center(60, "="))
         sys.exit(0)  # equivelent to `raise SystemExit()`
         logging.info("called sys.exit but still running, trying os._exit")
@@ -895,17 +890,6 @@ class ExtrasBot(Bot):
         except FileNotFoundError:
             return "No commit message available"
 
-    async def do_signalme(self, _: Message) -> Response:
-        """signalme
-        Returns a link to share the bot with friends!"""
-        if self.datastore.keystate:
-            username = json.loads(self.datastore.keystate).get("username")
-            return (
-                (await self.signal_rpc_request("updateAccount", username=username))
-                .blob.get("result", {})
-                .get("usernameLink", "Username not set.")
-            )
-        return "Couldn't provide a signal.me link for this bot."
 
     @hide
     async def do_rot13(self, msg: Message) -> Response:
