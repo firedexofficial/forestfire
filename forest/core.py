@@ -715,7 +715,7 @@ class Bot(Signal):
             rpc_id = await self.respond(message, str(e))
         except:  # pylint: disable=bare-except
             exception_traceback = "".join(traceback.format_exception(*sys.exc_info()))
-            logging.info("error handling message %s %s", message, exception_traceback)
+            logging.error("error handling message %s %s", message, exception_traceback)
             self.pending_response_tasks.append(
                 asyncio.create_task(
                     self.admin(f"{message}\n{exception_traceback}"),
