@@ -20,7 +20,7 @@ prometheus_client = "*"
 protobuf = "*"
 ulid2 = "*"
 pycryptodome = "*"
-aiohttp = {extras = ["speedups"], version = "^3.8.1"}
+aiohttp = {extras = ["speedups"], version = "^3.9.5"}
 python-json-logger = "^2.0.7"
 
 [tool.poetry.dev-dependencies]
